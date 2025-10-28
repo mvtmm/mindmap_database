@@ -25,3 +25,4 @@ coverage/
 # Docker build context exclusions
 map/node_modules/
 map/dist/
+map/.npm-cache/
