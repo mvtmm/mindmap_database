@@ -1,0 +1,27 @@
+# Node / Vite
+node_modules/
+dist/
+.cache/
+.tmp/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
+
+# Env
+.env
+.env.*.local
+
+# Build artifacts
+coverage/
+
+# Docker build context exclusions
+map/node_modules/
+map/dist/

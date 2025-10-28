@@ -1,0 +1,120 @@
+services:
+  db:
+    image: proget.tkms.net/public_docker/postgres:16-alpine
+    container_name: directus_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - directus_db:/var/lib/postgresql/data
+    networks:
+      - directus
+      - traefik
+      - dnsbackend
+
+  cache:
+    image: proget.tkms.net/public_docker/redis:7-alpine
+    container_name: directus_cache
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - directus_redis:/data
+    networks:
+      - traefik
+      - dnsbackend
+      - directus
+
+  directus:
+    image: proget.tkms.net/public_docker/directus/directus:latest
+    container_name: directus_instance
+    environment:
+      KEY: ${KEY}
+      SECRET: ${SECRET}
+      PORT: 8055
+
+      DB_CLIENT: pg
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PUBLIC_URL: ${PUBLIC_URL}
+      TRUST_PROXY: true
+
+      REDIS: redis://cache:6379
+      RATE_LIMITER_ENABLED: "true"
+      CACHE_ENABLED: "true"
+
+      STORAGE_LOCATIONS: local
+      STORAGE_LOCAL_ROOT: /directus/uploads
+
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      CORS_METHODS: GET,POST,PATCH,DELETE,OPTIONS
+      CORS_ALLOWED_HEADERS: Content-Type,Authorization
+      CORS_EXPOSED_HEADERS: Content-Range
+      REFRESH_TOKEN_COOKIE_SECURE: "true"
+      REFRESH_TOKEN_COOKIE_SAME_SITE: strict
+
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - directus_uploads:/directus/uploads
+      - directus_extensions:/directus/extensions
+    networks:
+      - traefik
+      - dnsbackend
+      - directus
+    dns:
+      - 172.31.0.100
+    ports:
+      - "8055"
+    labels:
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.directus_strip.entrypoints=websecure"
+      - "traefik.http.routers.directus_strip.rule=Host(`pie-ai-service.hdw.hdwgroup.net`) && PathPrefix(`/code_server/directus/`)"
+      - "traefik.http.routers.directus_strip.tls=true"
+      - "traefik.http.middlewares.directus_strip.stripprefix.prefixes=/code_server/directus,/code_server/directus/"
+      - "traefik.http.routers.directus_strip.middlewares=directus_strip"
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  map:
+    build:
+      context: ./map
+      dockerfile: Dockerfile
+    image: tkms/directus-mindmap:latest
+    container_name: directus_mindmap
+    restart: unless-stopped
+    environment:
+      - VITE_APP_BASE_PATH=/map/
+      - VITE_DIRECTUS_URL=https://pie-ai-service.hdw.hdwgroup.net/code_server/directus/
+    networks:
+      - traefik
+      - dnsbackend
+    labels:
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.map.entrypoints=websecure"
+      - "traefik.http.routers.map.rule=Host(`pie-ai-service.hdw.hdwgroup.net`) && PathPrefix(`/map`)"
+      - "traefik.http.routers.map.tls=true"
+      - "com.centurylinklabs.watchtower.enable=true"
+
+volumes:
+  directus_db:
+  directus_uploads:
+  directus_extensions:
+  directus_redis:
+
+networks:
+  directus:
+    name: directus
+    driver: bridge
+  traefik:
+    name: traefik
+    external: true
+  dnsbackend:
+    name: pihole_dnsbackend
+    external: true
